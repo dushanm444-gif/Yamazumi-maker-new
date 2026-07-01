@@ -1,0 +1,1565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CycleStudy — Production Time Study</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #22263a;
+    --border: #2e3248;
+    --accent: #4f8ef7;
+    --accent2: #f7c94f;
+    --danger: #f75f5f;
+    --success: #4fcf8e;
+    --text: #e8eaf0;
+    --muted: #7a7f9a;
+    --font-mono: 'Courier New', monospace;
+    --font: 'Segoe UI', system-ui, sans-serif;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font); min-height: 100vh; }
+
+  /* NAV */
+  nav {
+    display: flex; align-items: center; gap: 0; background: var(--surface);
+    border-bottom: 2px solid var(--border); padding: 0 20px; position: sticky; top: 0; z-index: 100;
+  }
+  .nav-brand { font-weight: 800; font-size: 18px; color: var(--accent); letter-spacing: -0.5px; padding: 14px 20px 14px 0; border-right: 1px solid var(--border); margin-right: 16px; }
+  .nav-brand span { color: var(--accent2); }
+  .nav-tab { padding: 14px 18px; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--muted); border-bottom: 3px solid transparent; transition: all .2s; letter-spacing: .4px; text-transform: uppercase; }
+  .nav-tab:hover { color: var(--text); }
+  .nav-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .nav-actions { margin-left: auto; display: flex; gap: 8px; }
+
+  /* PAGES */
+  .page { display: none; padding: 24px; max-width: 1200px; margin: 0 auto; }
+  .page.active { display: block; }
+
+  /* CARDS */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; }
+  .card-title { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 14px; }
+
+  /* FORM ELEMENTS */
+  input, select, textarea {
+    background: var(--bg); border: 1.5px solid var(--border); border-radius: 7px;
+    color: var(--text); padding: 9px 13px; font-size: 14px; font-family: var(--font);
+    width: 100%; outline: none; transition: border .2s;
+  }
+  input:focus, select:focus { border-color: var(--accent); }
+  select option { background: var(--surface); }
+  label { font-size: 12px; color: var(--muted); font-weight: 600; display: block; margin-bottom: 5px; text-transform: uppercase; letter-spacing: .5px; }
+  .field { margin-bottom: 14px; }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; }
+  .row .field { flex: 1; min-width: 150px; }
+
+  /* BUTTONS */
+  .btn { padding: 9px 18px; border-radius: 7px; border: none; cursor: pointer; font-size: 13px; font-weight: 700; font-family: var(--font); transition: all .15s; letter-spacing: .3px; }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: #3a7de0; }
+  .btn-success { background: var(--success); color: #0a1f15; }
+  .btn-success:hover { background: #38b87a; }
+  .btn-danger { background: var(--danger); color: #fff; }
+  .btn-danger:hover { background: #d94444; }
+  .btn-ghost { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+  .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-warning { background: var(--accent2); color: #1a1200; }
+  .btn-warning:hover { background: #e0b230; }
+  .btn-sm { padding: 6px 12px; font-size: 12px; }
+
+  /* SMV display */
+  .smv-badge {
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 7px;
+    padding: 10px 16px; display: flex; gap: 24px; align-items: center; margin-bottom: 14px;
+  }
+  .smv-badge .item { text-align: center; }
+  .smv-badge .item .val { font-size: 22px; font-weight: 800; color: var(--accent); font-family: var(--font-mono); }
+  .smv-badge .item .lbl { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+
+  /* STOPWATCH GRID */
+  .sw-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 14px; }
+  .sw-cell { background: var(--surface2); border: 1.5px solid var(--border); border-radius: 8px; padding: 12px 8px; text-align: center; cursor: pointer; transition: all .15s; user-select: none; }
+  .sw-cell:hover { border-color: var(--accent); }
+  .sw-cell.recording { border-color: var(--danger); background: #2a1515; animation: pulse 1s infinite; }
+  .sw-cell.recorded { border-color: var(--success); background: #0f2a1a; }
+  .sw-cell .ct-num { font-size: 11px; color: var(--muted); font-weight: 700; margin-bottom: 4px; }
+  .sw-cell .ct-val { font-size: 20px; font-weight: 800; font-family: var(--font-mono); color: var(--text); }
+  .sw-cell .ct-sub { font-size: 10px; color: var(--muted); margin-top: 2px; }
+  .sw-cell.recorded .ct-val { color: var(--success); }
+  @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:.6; } }
+
+  .avg-row { display: flex; align-items: center; gap: 16px; background: var(--surface2); border-radius: 8px; padding: 12px 16px; margin-bottom: 14px; }
+  .avg-row .avg-val { font-size: 28px; font-weight: 900; color: var(--accent2); font-family: var(--font-mono); }
+  .avg-row .avg-lbl { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+
+  .sw-controls { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+
+  /* TABLE */
+  .tbl-wrap { overflow-x: auto; border-radius: var(--radius); border: 1px solid var(--border); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead tr { background: var(--surface2); }
+  th { padding: 10px 12px; text-align: left; font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  td { padding: 9px 12px; border-bottom: 1px solid var(--border); color: var(--text); vertical-align: middle; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: var(--surface2); }
+  .ssv-col { color: var(--accent2); font-weight: 700; font-family: var(--font-mono); }
+  .ct-col { color: var(--accent); font-weight: 700; font-family: var(--font-mono); }
+
+  /* UPLOAD ZONE */
+  .upload-zone { border: 2px dashed var(--border); border-radius: var(--radius); padding: 30px; text-align: center; cursor: pointer; transition: all .2s; }
+  .upload-zone:hover, .upload-zone.drag { border-color: var(--accent); background: #1a2240; }
+  .upload-zone input { display: none; }
+
+  /* PAGE 2 */
+  .filter-bar { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 16px; }
+  .filter-bar .field { margin-bottom: 0; min-width: 160px; }
+
+  /* CHART */
+  #chartCanvas { width: 100%; background: var(--surface2); border-radius: var(--radius); border: 1px solid var(--border); }
+
+  /* STATUS */
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 700; }
+  .badge-blue { background: #1a2a4a; color: var(--accent); }
+  .badge-green { background: #0f2a1a; color: var(--success); }
+
+  /* TOAST */
+  #toast { position: fixed; bottom: 24px; right: 24px; background: var(--success); color: #0a1f15; padding: 12px 20px; border-radius: 8px; font-weight: 700; font-size: 14px; z-index: 9999; display: none; }
+
+  /* CURRENT RECORD indicator */
+  .current-op-bar { background: linear-gradient(90deg, #1a2a4a, var(--surface2)); border: 1px solid var(--accent); border-radius: 8px; padding: 10px 16px; margin-bottom: 12px; font-size: 13px; }
+  .current-op-bar strong { color: var(--accent); }
+
+  .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  .section-header h2 { font-size: 16px; font-weight: 800; }
+
+  /* MODAL */
+  .modal-overlay { display:none; position:fixed; inset:0; background:#000a; z-index:1000; align-items:center; justify-content:center; }
+  .modal-overlay.open { display:flex; }
+  .modal { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:24px; width:92%; max-width:480px; }
+  .modal h3 { font-size:15px; font-weight:800; margin-bottom:16px; }
+  .modal-actions { display:flex; gap:8px; justify-content:flex-end; margin-top:18px; }
+
+  @media (max-width: 600px) {
+    .sw-grid { grid-template-columns: repeat(3, 1fr); }
+    nav { overflow-x: auto; }
+    .nav-tab { white-space: nowrap; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-brand">Cycle<span>Study</span></div>
+  <div class="nav-tab active" onclick="showPage('p1')">📋 Study</div>
+  <div class="nav-tab" onclick="showPage('p2')">📁 Records</div>
+  <div class="nav-tab" onclick="showPage('p3')">📊 Chart</div>
+  <div class="nav-tab" onclick="showPage('p4')">🧩 Skill Matrix</div>
+  <div class="nav-tab" onclick="showPage('p5')">👤 Operators</div>
+  <div class="nav-actions">
+    <button class="btn btn-ghost btn-sm" onclick="backup()">⬇ Backup</button>
+    <button class="btn btn-ghost btn-sm" onclick="document.getElementById('restoreFile').click()">⬆ Restore</button>
+    <input type="file" id="restoreFile" accept=".json" style="display:none" onchange="restore(event)">
+  </div>
+</nav>
+
+<!-- PAGE 1: STUDY -->
+<div class="page active" id="p1">
+  <div class="section-header">
+    <h2>Production Time Study</h2>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-danger btn-sm" onclick="finishProject()">✅ Finished</button>
+    </div>
+  </div>
+
+  <!-- PROJECT INFO -->
+  <div class="card">
+    <div class="card-title">Project Info</div>
+    <div class="row">
+      <div class="field">
+        <label>Style Number</label>
+        <input type="text" id="styleNo" placeholder="e.g. ST-2024-001">
+      </div>
+      <div class="field">
+        <label>Line Number</label>
+        <select id="lineNo" onchange="onStudyLineChange()">
+          <option value="">-- Select Line --</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- OPERATION BREAKDOWN UPLOAD -->
+  <div class="card">
+    <div class="card-title">Operation Breakdown (SMV Data)</div>
+    <div class="row" style="align-items:flex-end;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
+      <div style="flex:1;min-width:200px;">
+        <label>Upload CSV / Excel (Operation Breakdown with SMV)</label>
+        <div class="upload-zone" onclick="document.getElementById('csvFile').click()" id="dropZone">
+          <div style="font-size:24px;margin-bottom:6px;">📂</div>
+          <div style="font-size:13px;color:var(--muted);">Click or drag CSV / XLSX / XLSM file here</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px;">Auto-detects Operation Description & S.A.M./SMV columns</div>
+          <input type="file" id="csvFile" accept=".csv,.txt,.xlsx,.xlsm,.xls" onchange="loadCSV(event)">
+        </div>
+      </div>
+      <div style="min-width:220px;">
+        <label>Or add manually</label>
+        <div style="display:flex;gap:6px;margin-bottom:6px;">
+          <input type="text" id="manOp" placeholder="Operation name" style="flex:2">
+          <input type="number" id="manSMV" placeholder="SMV" step="0.001" style="flex:1">
+          <button class="btn btn-ghost btn-sm" onclick="addManualOp()" style="white-space:nowrap">+ Add</button>
+        </div>
+      </div>
+    </div>
+    <div class="section-header" style="margin-bottom:8px;">
+      <div style="font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;">Loaded Operations (<span id="opTotalCount">0</span>)</div>
+      <button class="btn btn-danger btn-sm" onclick="deleteAllOps()">🗑 Delete All Operations</button>
+    </div>
+    <div id="opListPreview" style="font-size:12px;color:var(--muted);"></div>
+  </div>
+
+  <!-- OPERATOR + OPERATION SELECTION -->
+  <div class="card">
+    <div class="section-header" style="margin-bottom:14px;">
+      <div class="card-title" style="margin:0">Operator & Operation</div>
+      <button class="btn btn-warning btn-sm" onclick="openManualEntry()">✍️ Manual</button>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label>Select Operation</label>
+        <select id="opSelect" onchange="onOpSelect()">
+          <option value="">-- Select Operation --</option>
+        </select>
+      </div>
+    </div>
+    <div id="smvDisplay" style="display:none">
+      <div class="smv-badge">
+        <div class="item"><div class="val" id="smvVal">0.000</div><div class="lbl">SMV (min)</div></div>
+        <div class="item"><div class="val" id="ssvVal">0.00</div><div class="lbl">SSV (sec) = SMV×60</div></div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label>Operator Name</label>
+        <select id="opName" onchange="onStudyNameChange()">
+          <option value="">-- Select Operator --</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>EPF Number</label>
+        <select id="epfNo" onchange="onStudyEpfChange()">
+          <option value="">-- Select EPF --</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- STOPWATCHES -->
+  <div class="card">
+    <div class="card-title">Cycle Time Recording (5 Cycles)</div>
+    <div class="sw-controls">
+      <button class="btn btn-danger btn-sm" id="swBtn" onclick="toggleStopwatch()">▶ Start Stopwatch</button>
+      <button class="btn btn-ghost btn-sm" onclick="resetAll()">↺ Reset All</button>
+    </div>
+    <div class="sw-grid" id="swGrid">
+      <!-- 5 cells generated by JS -->
+    </div>
+    <div class="avg-row">
+      <div>
+        <div class="avg-val" id="avgVal">0.00s</div>
+        <div class="avg-lbl">Average Cycle Time</div>
+      </div>
+      <div style="font-size:12px;color:var(--muted);line-height:1.6;">
+        Recorded: <strong id="recordedCount">0</strong>/5 cycles<br>
+        <span id="runningTime" style="color:var(--danger);font-family:var(--font-mono);"></span>
+      </div>
+    </div>
+    <button class="btn btn-success" onclick="saveRecord()" style="width:100%;margin-top:4px;">💾 Save Record to Table</button>
+  </div>
+
+  <!-- SESSION TABLE -->
+  <div class="card">
+    <div class="section-header">
+      <div class="card-title" style="margin:0">Session Records</div>
+      <button class="btn btn-ghost btn-sm" onclick="clearSession()">🗑 Clear Session</button>
+    </div>
+    <div class="tbl-wrap">
+      <table id="sessionTable">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Style</th>
+            <th>Line</th>
+            <th>Operation</th>
+            <th>Operator</th>
+            <th>EPF</th>
+            <th>SSV (s)</th>
+            <th>SMV (min)</th>
+            <th>CT1</th><th>CT2</th><th>CT3</th><th>CT4</th><th>CT5</th>
+            <th>Avg CT (s)</th>
+            <th>Del</th>
+          </tr>
+        </thead>
+        <tbody id="sessionTbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- PAGE 2: RECORDS -->
+<div class="page" id="p2">
+  <div class="section-header">
+    <h2>Saved Project Records</h2>
+    <button class="btn btn-primary btn-sm" onclick="exportExcel()">⬇ Download Excel</button>
+  </div>
+  <div class="filter-bar">
+    <div class="field"><label>Filter by Style</label><input type="text" id="f2style" placeholder="Style number" oninput="renderRecords()"></div>
+    <div class="field"><label>Filter by Line</label><input type="text" id="f2line" placeholder="Line number" oninput="renderRecords()"></div>
+    <button class="btn btn-ghost btn-sm" onclick="document.getElementById('f2style').value='';document.getElementById('f2line').value='';renderRecords()">Clear</button>
+  </div>
+  <div id="recordsContainer"></div>
+</div>
+
+<!-- PAGE 3: CHART -->
+<div class="page" id="p3">
+  <div class="section-header">
+    <h2>Cycle Time Analysis</h2>
+    <button class="btn btn-ghost btn-sm" onclick="downloadChart()">⬇ Download Chart</button>
+  </div>
+  <div class="filter-bar">
+    <div class="field"><label>Style</label><input type="text" id="f3style" placeholder="Style number" oninput="renderChart()"></div>
+    <div class="field"><label>Line</label><input type="text" id="f3line" placeholder="Line number" oninput="renderChart()"></div>
+    <button class="btn btn-ghost btn-sm" onclick="document.getElementById('f3style').value='';document.getElementById('f3line').value='';renderChart()">Clear</button>
+  </div>
+  <canvas id="chartCanvas" height="400"></canvas>
+</div>
+
+<!-- PAGE 4: SKILL MATRIX -->
+<div class="page" id="p4">
+  <div class="section-header">
+    <h2>Operator Skill Matrix</h2>
+    <button class="btn btn-primary btn-sm" onclick="exportSkillMatrix()">⬇ Download Excel</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Add Skill Rating</div>
+    <div class="row">
+      <div class="field">
+        <label>Line</label>
+        <select id="smLine" onchange="onSmLineChange()">
+          <option value="">-- Select Line --</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Operator Name</label>
+        <select id="smName" onchange="onSmNameChange()">
+          <option value="">-- Select Operator --</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>EPF Number</label>
+        <select id="smEpf" onchange="onSmEpfChange()">
+          <option value="">-- Select EPF --</option>
+        </select>
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label>Operation</label>
+        <select id="smOperation">
+          <option value="">-- Select Operation --</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Skill Level (1-5)</label>
+        <select id="smLevel">
+          <option value="1">1 - Beginner</option>
+          <option value="2">2 - Basic</option>
+          <option value="3" selected>3 - Competent</option>
+          <option value="4">4 - Skilled</option>
+          <option value="5">5 - Expert</option>
+        </select>
+      </div>
+    </div>
+    <button class="btn btn-success" onclick="addSkillEntry()" style="width:100%;">💾 Add to Skill Matrix</button>
+  </div>
+
+  <div class="card">
+    <div class="section-header">
+      <div class="card-title" style="margin:0">Skill Matrix Grid</div>
+      <button class="btn btn-ghost btn-sm" onclick="clearSkillMatrix()">🗑 Clear All</button>
+    </div>
+    <div class="tbl-wrap" id="skillMatrixWrap"></div>
+  </div>
+</div>
+
+<!-- PAGE 5: OPERATOR DATABASE -->
+<div class="page" id="p5">
+  <div class="section-header">
+    <h2>Operator Database</h2>
+    <button class="btn btn-primary btn-sm" onclick="exportOperators()">⬇ Download Excel</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Upload Operator List (Excel)</div>
+    <div class="upload-zone" onclick="document.getElementById('opDbFile').click()" id="opDbDropZone">
+      <div style="font-size:24px;margin-bottom:6px;">📂</div>
+      <div style="font-size:13px;color:var(--muted);">Click or drag Excel file here</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px;">Auto-detects "Line No", "Name", "EPF" columns</div>
+      <input type="file" id="opDbFile" accept=".csv,.xlsx,.xlsm,.xls" onchange="loadOperatorFile(event)">
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Add Operator Manually</div>
+    <div class="row">
+      <div class="field"><label>Line No</label><input type="text" id="manLine" placeholder="e.g. Line 5"></div>
+      <div class="field"><label>Name</label><input type="text" id="manName" placeholder="Operator name"></div>
+      <div class="field"><label>EPF</label><input type="text" id="manEpf" placeholder="EPF number"></div>
+    </div>
+    <button class="btn btn-success btn-sm" onclick="addOperatorManual()">+ Add Operator</button>
+  </div>
+
+  <div class="card">
+    <div class="section-header">
+      <div class="card-title" style="margin:0">Operator List (<span id="opCount">0</span>)</div>
+      <button class="btn btn-ghost btn-sm" onclick="clearOperators()">🗑 Clear All</button>
+    </div>
+    <div class="filter-bar">
+      <div class="field"><label>Filter by Line</label><input type="text" id="opFilterLine" placeholder="Line number" oninput="renderOperatorTable()"></div>
+      <div class="field"><label>Search Name/EPF</label><input type="text" id="opFilterSearch" placeholder="Name or EPF" oninput="renderOperatorTable()"></div>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>#</th><th>Line</th><th>Name</th><th>EPF</th><th>Del</th></tr></thead>
+        <tbody id="operatorTbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<!-- MODAL: Manual Entry (Operation + Operator) -->
+<div class="modal-overlay" id="manualEntryModal">
+  <div class="modal">
+    <h3>✍️ Manual Entry</h3>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:14px;">Add a one-off operation and/or operator without uploading a database.</p>
+    <div class="card-title" style="margin-bottom:8px;">Operation (optional)</div>
+    <div class="row">
+      <div class="field"><label>Operation Name</label><input type="text" id="meOpName" placeholder="Operation name"></div>
+      <div class="field"><label>SMV (minutes)</label><input type="number" id="meSMV" step="0.001" placeholder="SMV"></div>
+    </div>
+    <div class="card-title" style="margin:14px 0 8px;">Operator (optional)</div>
+    <div class="row">
+      <div class="field"><label>Operator Name</label><input type="text" id="meOperatorName" placeholder="Operator name"></div>
+      <div class="field"><label>EPF Number</label><input type="text" id="meEpf" placeholder="EPF number"></div>
+    </div>
+    <div class="field"><label>Line (for operator)</label><input type="text" id="meLine" placeholder="Line number"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('manualEntryModal')">Cancel</button>
+      <button class="btn btn-success" onclick="saveManualEntry()">Save & Use</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Edit Operation -->
+<div class="modal-overlay" id="editOpModal">
+  <div class="modal">
+    <h3>✏️ Edit Operation</h3>
+    <div class="field"><label>Operation Name</label><input type="text" id="editOpName"></div>
+    <div class="field"><label>SMV (minutes)</label><input type="number" id="editOpSMV" step="0.001"></div>
+    <input type="hidden" id="editOpIdx">
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('editOpModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveEditOp()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Delete Project -->
+<div class="modal-overlay" id="delProjectModal">
+  <div class="modal">
+    <h3>🗑 Delete Project</h3>
+    <p style="color:var(--muted);font-size:13px;margin-bottom:12px;">This will permanently delete all records for this project.</p>
+    <div style="background:var(--surface2);border-radius:8px;padding:12px;margin-bottom:4px;">
+      <div style="font-size:13px;">Style: <strong id="delProjStyle"></strong></div>
+      <div style="font-size:13px;">Line: <strong id="delProjLine"></strong></div>
+      <div style="font-size:12px;color:var(--danger);margin-top:6px;" id="delProjCount"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('delProjectModal')">Cancel</button>
+      <button class="btn btn-danger" onclick="confirmDelProject()">Delete Project</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── STATE ─────────────────────────────────────────────────────────────────
+let operations = JSON.parse(localStorage.getItem('cycleStudyOperations') || '[]'); // [{name, smv}]
+let cycleTimes = [null,null,null,null,null];
+let swRunning = false;
+let swStart = null;
+let swTimer = null;
+let swCurrentCell = 0; // which cell is being recorded
+let sessionRecords = []; // current session (not yet finished)
+let allRecords = JSON.parse(localStorage.getItem('cycleStudyRecords') || '[]');
+let operators = JSON.parse(localStorage.getItem('cycleStudyOperators') || '[]'); // [{line, name, epf}]
+let skillMatrix = JSON.parse(localStorage.getItem('cycleStudySkillMatrix') || '[]'); // [{epf, name, operation, level}]
+
+// ─── NAV ───────────────────────────────────────────────────────────────────
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  const tabs = document.querySelectorAll('.nav-tab');
+  const order = ['p1','p2','p3','p4','p5'];
+  const idx = order.indexOf(id);
+  if(idx >= 0) tabs[idx].classList.add('active');
+  if(id==='p2') renderRecords();
+  if(id==='p3') renderChart();
+  if(id==='p4') renderSkillMatrix();
+  if(id==='p5') refreshOperatorDropdowns();
+}
+
+// ─── DRAG & DROP ───────────────────────────────────────────────────────────
+const dropZone = document.getElementById('dropZone');
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag'));
+dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('drag'); if(e.dataTransfer.files[0]) processCSVFile(e.dataTransfer.files[0]); });
+
+// ─── CSV/EXCEL LOAD ────────────────────────────────────────────────────────
+function loadCSV(e) { if(e.target.files[0]) processCSVFile(e.target.files[0]); }
+
+function processCSVFile(file) {
+  const ext = file.name.split('.').pop().toLowerCase();
+  if(['xlsx','xlsm','xls'].includes(ext)) {
+    processExcelFile(file);
+  } else {
+    processTextFile(file);
+  }
+}
+
+function processTextFile(file) {
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const lines = ev.target.result.split('\n').map(l => l.trim()).filter(Boolean);
+    const newOps = [];
+    lines.forEach(line => {
+      const parts = line.split(',');
+      if(parts.length >= 2) {
+        const name = parts.slice(0, parts.length-1).join(',').trim();
+        const smv = parseFloat(parts[parts.length-1]);
+        if(name && !isNaN(smv)) newOps.push({name, smv});
+      }
+    });
+    if(newOps.length > 0) {
+      operations = newOps;
+      refreshOpDropdown();
+      showToast(`✅ Loaded ${newOps.length} operations`);
+    } else {
+      showToast('⚠ No valid operations found. Use: Operation Name, SMV', 'danger');
+    }
+  };
+  reader.readAsText(file);
+}
+
+// Excludes section headers, totals, targets, blank rows. Finds Operation Description + SMV columns automatically.
+function processExcelFile(file) {
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const data = new Uint8Array(ev.target.result);
+      const wb = XLSX.read(data, {type:'array'});
+      const newOps = [];
+      const excludeKeywords = ['total','target','used','workers','remarks','description','operation','folders','attach','p / t','l.c.l','u.c.l','st no','expe','no of','day'];
+
+      wb.SheetNames.forEach(sheetName => {
+        const ws = wb.Sheets[sheetName];
+        const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:null, raw:true});
+
+        rows.forEach(row => {
+          if(!row || row.length < 2) return;
+          // Scan columns for a text label + adjacent/nearby numeric SMV value (0 < smv < 100 typical range)
+          for(let c = 0; c < row.length; c++) {
+            const cell = row[c];
+            if(typeof cell === 'string' && cell.trim().length > 4) {
+              const label = cell.trim();
+              const lowerLabel = label.toLowerCase();
+              if(excludeKeywords.some(k => lowerLabel.includes(k))) { break; }
+              // Skip short uppercase machine/layout codes (e.g. HEL, IRN, TBL, TTL)
+              if(label === label.toUpperCase() && label.length <= 5 && !label.includes(' ')) { break; }
+              // Look for a plausible SMV number in nearby columns (within 6 columns to the right)
+              for(let k = c+1; k <= Math.min(c+6, row.length-1); k++) {
+                const val = row[k];
+                if(typeof val === 'number' && val > 0 && val < 100) {
+                  newOps.push({name: label, smv: parseFloat(val.toFixed(4))});
+                  break;
+                }
+              }
+              break; // only first text cell per row considered as operation name
+            }
+          }
+        });
+      });
+
+      // Deduplicate by name (keep first occurrence)
+      const seen = new Set();
+      const deduped = newOps.filter(o => {
+        const key = o.name.toUpperCase();
+        if(seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+
+      if(deduped.length > 0) {
+        operations = deduped;
+        refreshOpDropdown();
+        showToast(`✅ Loaded ${deduped.length} operations from Excel`);
+      } else {
+        showToast('⚠ No operations detected in Excel file', 'danger');
+      }
+    } catch(err) {
+      showToast('⚠ Error reading Excel file: ' + err.message, 'danger');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function addManualOp() {
+  const name = document.getElementById('manOp').value.trim();
+  const smv = parseFloat(document.getElementById('manSMV').value);
+  if(!name || isNaN(smv)) { showToast('⚠ Enter operation name and SMV', 'danger'); return; }
+  operations.push({name, smv});
+  document.getElementById('manOp').value = '';
+  document.getElementById('manSMV').value = '';
+  refreshOpDropdown();
+  showToast('✅ Operation added');
+}
+
+function refreshOpDropdown() {
+  localStorage.setItem('cycleStudyOperations', JSON.stringify(operations));
+  const sel = document.getElementById('opSelect');
+  sel.innerHTML = '<option value="">-- Select Operation --</option>';
+  operations.forEach((op, i) => {
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = `${op.name} (SMV: ${op.smv.toFixed(3)})`;
+    sel.appendChild(opt);
+  });
+  document.getElementById('opTotalCount').textContent = operations.length;
+  const preview = document.getElementById('opListPreview');
+  if(operations.length === 0) { preview.innerHTML = '<span style="color:var(--muted);font-size:12px;">No operations loaded.</span>'; return; }
+  preview.innerHTML = operations.map((o, i) => `
+    <div style="display:flex;align-items:center;gap:6px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:5px 10px;margin:3px 0;">
+      <span style="flex:1;font-size:12px;"><b style="color:var(--text)">${o.name}</b> <span style="color:var(--accent);font-family:var(--font-mono);">SMV: ${o.smv.toFixed(3)}</span> <span style="color:var(--accent2);font-size:11px;">SSV: ${(o.smv*60).toFixed(1)}s</span></span>
+      <button class="btn btn-ghost btn-sm" onclick="openEditOp(${i})" style="padding:3px 8px;font-size:11px;">✏️</button>
+      <button class="btn btn-danger btn-sm" onclick="deleteOp(${i})" style="padding:3px 8px;font-size:11px;">✕</button>
+    </div>
+  `).join('');
+}
+
+function deleteAllOps() {
+  if(operations.length === 0) { showToast('⚠ No operations to delete', 'danger'); return; }
+  if(!confirm(`Delete ALL ${operations.length} operations? This cannot be undone.`)) return;
+  operations = [];
+  refreshOpDropdown();
+  refreshOperatorDropdowns();
+  document.getElementById('opSelect').value = '';
+  document.getElementById('smvDisplay').style.display = 'none';
+  showToast('✅ All operations deleted');
+}
+
+function onOpSelect() {
+  const idx = document.getElementById('opSelect').value;
+  if(idx === '') { document.getElementById('smvDisplay').style.display = 'none'; return; }
+  const op = operations[idx];
+  document.getElementById('smvVal').textContent = op.smv.toFixed(3);
+  document.getElementById('ssvVal').textContent = (op.smv * 60).toFixed(2);
+  document.getElementById('smvDisplay').style.display = 'block';
+}
+
+// ─── STOPWATCH ─────────────────────────────────────────────────────────────
+function buildSwGrid() {
+  const grid = document.getElementById('swGrid');
+  grid.innerHTML = '';
+  for(let i=0;i<5;i++) {
+    const cell = document.createElement('div');
+    cell.className = 'sw-cell';
+    cell.id = `cell${i}`;
+    cell.innerHTML = `<div class="ct-num">CT ${i+1}</div><div class="ct-val" id="ctVal${i}">--</div><div class="ct-sub" id="ctSub${i}">tap to record</div>`;
+    cell.onclick = () => recordCell(i);
+    grid.appendChild(cell);
+  }
+}
+buildSwGrid();
+
+function toggleStopwatch() {
+  if(!swRunning) {
+    swRunning = true;
+    swStart = Date.now();
+    document.getElementById('swBtn').textContent = '⏹ Stop Stopwatch';
+    document.getElementById('swBtn').className = 'btn btn-ghost btn-sm';
+    swTimer = setInterval(updateRunning, 50);
+  } else {
+    swRunning = false;
+    clearInterval(swTimer);
+    document.getElementById('swBtn').textContent = '▶ Start Stopwatch';
+    document.getElementById('swBtn').className = 'btn btn-danger btn-sm';
+    document.getElementById('runningTime').textContent = '';
+  }
+}
+
+function updateRunning() {
+  const elapsed = ((Date.now() - swStart) / 1000).toFixed(2);
+  document.getElementById('runningTime').textContent = `⏱ ${elapsed}s`;
+}
+
+function recordCell(i) {
+  if(!swRunning) { showToast('⚠ Start stopwatch first', 'danger'); return; }
+  const elapsed = parseFloat(((Date.now() - swStart) / 1000).toFixed(2));
+  cycleTimes[i] = elapsed;
+  const cell = document.getElementById(`cell${i}`);
+  cell.className = 'sw-cell recorded';
+  document.getElementById(`ctVal${i}`).textContent = elapsed + 's';
+  document.getElementById(`ctSub${i}`).textContent = 'recorded';
+  // Reset stopwatch for next measurement
+  swStart = Date.now();
+  updateAvg();
+  document.getElementById('recordedCount').textContent = cycleTimes.filter(x=>x!==null).length;
+}
+
+function updateAvg() {
+  const vals = cycleTimes.filter(x => x !== null);
+  if(vals.length === 0) { document.getElementById('avgVal').textContent = '0.00s'; return; }
+  const avg = (vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(2);
+  document.getElementById('avgVal').textContent = avg + 's';
+}
+
+function resetAll() {
+  cycleTimes = [null,null,null,null,null];
+  buildSwGrid();
+  if(swRunning) toggleStopwatch();
+  document.getElementById('avgVal').textContent = '0.00s';
+  document.getElementById('recordedCount').textContent = '0';
+  document.getElementById('runningTime').textContent = '';
+}
+
+// ─── SAVE RECORD ───────────────────────────────────────────────────────────
+function saveRecord() {
+  const style = document.getElementById('styleNo').value.trim();
+  const line = document.getElementById('lineNo').value.trim();
+  const opIdx = document.getElementById('opSelect').value;
+  const opNameSel = document.getElementById('opName');
+  const opName = opNameSel.options[opNameSel.selectedIndex]?.textContent || '';
+  const epf = document.getElementById('epfNo').value.trim();
+
+  if(!style) { showToast('⚠ Enter Style Number', 'danger'); return; }
+  if(!line) { showToast('⚠ Select Line Number', 'danger'); return; }
+  if(opIdx === '') { showToast('⚠ Select an Operation', 'danger'); return; }
+  if(!opName || opName.startsWith('--')) { showToast('⚠ Select Operator Name', 'danger'); return; }
+  if(!epf) { showToast('⚠ EPF Number missing', 'danger'); return; }
+
+  const vals = cycleTimes.filter(x=>x!==null);
+  if(vals.length === 0) { showToast('⚠ Record at least one cycle time', 'danger'); return; }
+
+  const op = operations[opIdx];
+  const avg = parseFloat((vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(2));
+
+  const record = {
+    style, line,
+    operation: op.name,
+    smv: op.smv,
+    ssv: parseFloat((op.smv * 60).toFixed(2)),
+    operator: opName,
+    epf,
+    ct: [...cycleTimes],
+    avg,
+    ts: new Date().toISOString()
+  };
+
+  sessionRecords.push(record);
+  renderSessionTable();
+  resetAll();
+  // Clear operator fields for next
+  document.getElementById('opName').value = '';
+  document.getElementById('epfNo').value = '';
+  document.getElementById('opSelect').value = '';
+  document.getElementById('smvDisplay').style.display = 'none';
+  showToast('✅ Record saved to session');
+}
+
+function renderSessionTable() {
+  const tbody = document.getElementById('sessionTbody');
+  tbody.innerHTML = '';
+  sessionRecords.forEach((r, i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${i+1}</td>
+      <td><span class="badge badge-blue">${r.style}</span></td>
+      <td>${r.line}</td>
+      <td>${r.operation}</td>
+      <td>${r.operator}</td>
+      <td style="font-family:var(--font-mono)">${r.epf}</td>
+      <td class="ssv-col">${r.ssv}</td>
+      <td>${r.smv.toFixed(3)}</td>
+      ${[0,1,2,3,4].map(j=>`<td class="ct-col">${r.ct[j]!==null?r.ct[j]+'s':'—'}</td>`).join('')}
+      <td class="ct-col">${r.avg}s</td>
+      <td><button class="btn btn-danger btn-sm" onclick="delSession(${i})">✕</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function delSession(i) {
+  sessionRecords.splice(i, 1);
+  renderSessionTable();
+}
+
+function clearSession() {
+  if(!confirm('Clear all session records?')) return;
+  sessionRecords = [];
+  renderSessionTable();
+}
+
+// ─── FINISH PROJECT ────────────────────────────────────────────────────────
+function finishProject() {
+  if(sessionRecords.length === 0) { showToast('⚠ No session records to save', 'danger'); return; }
+  if(!confirm(`Save ${sessionRecords.length} records as finished project?`)) return;
+  allRecords = [...allRecords, ...sessionRecords];
+  localStorage.setItem('cycleStudyRecords', JSON.stringify(allRecords));
+  autoUpdateSkillMatrix(sessionRecords);
+  sessionRecords = [];
+  renderSessionTable();
+  // Clear operation breakdown on Page 1 for the next new project
+  operations = [];
+  refreshOpDropdown();
+  document.getElementById('opSelect').value = '';
+  document.getElementById('smvDisplay').style.display = 'none';
+  document.getElementById('styleNo').value = '';
+  document.getElementById('lineNo').value = '';
+  showToast(`✅ Project finished! ${allRecords.length} total records saved. Ready for new project.`);
+}
+
+// Auto-derive skill level from performance ratio = SSV / Avg CT (efficiency).
+// >=1.2 Expert(5), >=1.0 Skilled(4), >=0.85 Competent(3), >=0.7 Basic(2), else Beginner(1)
+function autoUpdateSkillMatrix(records) {
+  records.forEach(r => {
+    if(!r.avg || r.avg <= 0) return;
+    const ratio = r.ssv / r.avg;
+    let level = 1;
+    if(ratio >= 1.2) level = 5;
+    else if(ratio >= 1.0) level = 4;
+    else if(ratio >= 0.85) level = 3;
+    else if(ratio >= 0.7) level = 2;
+
+    const existing = skillMatrix.find(s => s.epf === r.epf && s.operation === r.operation);
+    if(existing) {
+      existing.level = level;
+      existing.line = r.line;
+      existing.name = r.operator;
+    } else {
+      skillMatrix.push({ line: r.line, epf: r.epf, name: r.operator, operation: r.operation, level });
+    }
+  });
+  saveSkillMatrix();
+}
+
+// ─── PAGE 2: RECORDS ───────────────────────────────────────────────────────
+function renderRecords() {
+  const fs = document.getElementById('f2style').value.toLowerCase();
+  const fl = document.getElementById('f2line').value.toLowerCase();
+  const filtered = allRecords.filter(r =>
+    (!fs || r.style.toLowerCase().includes(fs)) &&
+    (!fl || r.line.toLowerCase().includes(fl))
+  );
+
+  const container = document.getElementById('recordsContainer');
+  if(filtered.length === 0) {
+    container.innerHTML = `<div style="text-align:center;color:var(--muted);padding:40px;background:var(--surface);border-radius:var(--radius);">No records found</div>`;
+    return;
+  }
+
+  // Group by style+line (project)
+  const projects = {};
+  filtered.forEach((r, globalIdx) => {
+    const key = r.style + '|||' + r.line;
+    if(!projects[key]) projects[key] = { style: r.style, line: r.line, records: [] };
+    projects[key].records.push({ ...r, _globalIdx: allRecords.indexOf(r) });
+  });
+
+  let html = '';
+  Object.values(projects).forEach(proj => {
+    html += `
+    <div class="card" style="margin-bottom:20px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+        <div>
+          <span class="badge badge-blue" style="font-size:13px;padding:4px 12px;">${proj.style}</span>
+          <span style="margin:0 8px;color:var(--muted);">|</span>
+          <span style="font-size:13px;font-weight:700;">Line: ${proj.line}</span>
+          <span style="margin-left:10px;font-size:12px;color:var(--muted);">${proj.records.length} record${proj.records.length>1?'s':''}</span>
+        </div>
+        <button class="btn btn-danger btn-sm" onclick="openDelProject('${proj.style}','${proj.line}')">🗑 Delete Project</button>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th>#</th><th>Operation</th><th>Operator</th><th>EPF</th>
+            <th>SSV (s)</th><th>SMV (min)</th>
+            <th>CT1</th><th>CT2</th><th>CT3</th><th>CT4</th><th>CT5</th>
+            <th>Avg CT (s)</th><th>Saved On</th><th>Del</th>
+          </tr></thead>
+          <tbody>
+            ${proj.records.map((r, i) => `
+              <tr>
+                <td>${i+1}</td>
+                <td>${r.operation}</td>
+                <td>${r.operator}</td>
+                <td style="font-family:var(--font-mono)">${r.epf}</td>
+                <td class="ssv-col">${r.ssv}</td>
+                <td>${r.smv.toFixed(3)}</td>
+                ${[0,1,2,3,4].map(j=>`<td class="ct-col">${r.ct[j]!==null?r.ct[j]+'s':'—'}</td>`).join('')}
+                <td class="ct-col">${r.avg}s</td>
+                <td style="font-size:11px;color:var(--muted)">${new Date(r.ts).toLocaleDateString()}</td>
+                <td><button class="btn btn-danger btn-sm" onclick="deleteRecord(${r._globalIdx})" style="padding:3px 8px;">✕</button></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+  });
+  container.innerHTML = html;
+}
+
+// ─── EXCEL EXPORT ──────────────────────────────────────────────────────────
+function exportExcel() {
+  const fs = document.getElementById('f2style').value.toLowerCase();
+  const fl = document.getElementById('f2line').value.toLowerCase();
+  const filtered = allRecords.filter(r =>
+    (!fs || r.style.toLowerCase().includes(fs)) &&
+    (!fl || r.line.toLowerCase().includes(fl))
+  );
+  if(filtered.length===0){ showToast('⚠ No records to export','danger'); return; }
+
+  const header = ['#','Style','Line','Operation','Operator','EPF','SSV (s)','SMV (min)','CT1','CT2','CT3','CT4','CT5','Avg CT (s)','Saved On'];
+  const rows = filtered.map((r,i) => [
+    i+1, r.style, r.line, r.operation, r.operator, r.epf, r.ssv, r.smv.toFixed(3),
+    ...r.ct.map(v=>v!==null?v:''), r.avg, new Date(r.ts).toLocaleString()
+  ]);
+
+  // Build CSV
+  const csv = [header, ...rows].map(row => row.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob(['\ufeff'+csv], {type:'text/csv;charset=utf-8;'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `CycleStudy_${fs||'ALL'}_Line${fl||'ALL'}_${Date.now()}.csv`;
+  a.click();
+  showToast('✅ Downloaded!');
+}
+
+// ─── PAGE 3: CHART ─────────────────────────────────────────────────────────
+function renderChart() {
+  const fs = document.getElementById('f3style').value.toLowerCase();
+  const fl = document.getElementById('f3line').value.toLowerCase();
+  const filtered = allRecords.filter(r =>
+    (!fs || r.style.toLowerCase().includes(fs)) &&
+    (!fl || r.line.toLowerCase().includes(fl))
+  );
+
+  const canvas = document.getElementById('chartCanvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = canvas.parentElement.clientWidth || 900;
+  canvas.height = 460;
+
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  // Background
+  ctx.fillStyle = '#1a1d27';
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  if(filtered.length===0) {
+    ctx.fillStyle = '#7a7f9a';
+    ctx.font = '16px Segoe UI';
+    ctx.textAlign = 'center';
+    ctx.fillText('No records found. Finish a project first.', canvas.width/2, canvas.height/2);
+    return;
+  }
+
+  const PAD = { l:72, r:120, t:50, b:110 };
+  const W = canvas.width - PAD.l - PAD.r;
+  const H = canvas.height - PAD.t - PAD.b;
+  const n = filtered.length;
+
+  // Each group has 2 bars (CT + SSV) + gap
+  const groupW = W / n;
+  const gap = 4;
+  const barW = Math.max(10, Math.min(30, (groupW - gap*3) / 2));
+
+  const maxVal = Math.max(
+    ...filtered.map(r => r.avg),
+    ...filtered.map(r => (r.ssv != null && !isNaN(r.ssv)) ? r.ssv : r.smv * 60)
+  ) * 1.25;
+
+  // ── Grid lines ──
+  const steps = 5;
+  ctx.strokeStyle = '#2e3248';
+  ctx.lineWidth = 1;
+  for(let i=0;i<=steps;i++) {
+    const y = PAD.t + H - (i/steps)*H;
+    ctx.beginPath(); ctx.moveTo(PAD.l, y); ctx.lineTo(PAD.l+W, y); ctx.stroke();
+    ctx.fillStyle = '#7a7f9a'; ctx.font='11px Courier New'; ctx.textAlign='right';
+    ctx.fillText(((maxVal*i/steps)).toFixed(1)+'s', PAD.l-6, y+4);
+  }
+
+  // ── Y axis label ──
+  ctx.save(); ctx.translate(14, PAD.t+H/2); ctx.rotate(-Math.PI/2);
+  ctx.fillStyle='#7a7f9a'; ctx.font='12px Segoe UI'; ctx.textAlign='center';
+  ctx.fillText('Time (seconds)', 0, 0); ctx.restore();
+
+  // ── Title ──
+  const styleLabel = fs ? `Style: ${fs.toUpperCase()}` : 'All Styles';
+  const lineLabel = fl ? ` | Line: ${fl.toUpperCase()}` : '';
+  ctx.fillStyle='#e8eaf0'; ctx.font='bold 14px Segoe UI'; ctx.textAlign='center';
+  ctx.fillText(`Avg Cycle Time vs SSV (SMV×60) — ${styleLabel}${lineLabel}`, canvas.width/2, 28);
+
+  // ── Legend ──
+  const lx = canvas.width - PAD.r + 14;
+  ctx.fillStyle='#4f8ef7'; ctx.fillRect(lx, PAD.t, 14, 14);
+  ctx.fillStyle='#e8eaf0'; ctx.font='12px Segoe UI'; ctx.textAlign='left';
+  ctx.fillText('Avg CT (s)', lx+18, PAD.t+11);
+
+  ctx.fillStyle='#f7c94f'; ctx.fillRect(lx, PAD.t+24, 14, 14);
+  ctx.fillStyle='#e8eaf0';
+  ctx.fillText('SSV = SMV×60 (s)', lx+18, PAD.t+35);
+
+  // ── Bars ──
+  filtered.forEach((r, i) => {
+    const groupX = PAD.l + i * groupW + (groupW - barW*2 - gap) / 2;
+
+    // ── CT bar (left of pair) ──
+    const ctVal = r.avg;
+    const ctH = (ctVal / maxVal) * H;
+    const ctX = groupX;
+    const ctY = PAD.t + H - ctH;
+    const ctGrad = ctx.createLinearGradient(0, ctY, 0, ctY+ctH);
+    ctGrad.addColorStop(0, '#4f8ef7');
+    ctGrad.addColorStop(1, '#1a2a4a');
+    ctx.fillStyle = ctGrad;
+    ctx.beginPath(); ctx.roundRect(ctX, ctY, barW, ctH, [4,4,0,0]); ctx.fill();
+    // CT value label
+    ctx.fillStyle='#4f8ef7'; ctx.font='bold 10px Courier New'; ctx.textAlign='center';
+    ctx.fillText(ctVal+'s', ctX+barW/2, ctY-4);
+
+    // ── SSV bar (right of pair) ──
+    const ssvVal = (r.ssv != null && !isNaN(r.ssv)) ? r.ssv : parseFloat((r.smv * 60).toFixed(2));
+    const ssvH = (ssvVal / maxVal) * H;
+    const ssvX = groupX + barW + gap;
+    const ssvY = PAD.t + H - ssvH;
+    const ssvGrad = ctx.createLinearGradient(0, ssvY, 0, ssvY+ssvH);
+    ssvGrad.addColorStop(0, '#f7c94f');
+    ssvGrad.addColorStop(1, '#3a2e00');
+    ctx.fillStyle = ssvGrad;
+    ctx.beginPath(); ctx.roundRect(ssvX, ssvY, barW, ssvH, [4,4,0,0]); ctx.fill();
+    // SSV value label
+    ctx.fillStyle='#f7c94f'; ctx.font='bold 10px Courier New'; ctx.textAlign='center';
+    ctx.fillText(ssvVal+'s', ssvX+barW/2, ssvY-4);
+
+    // ── X axis label: Operator + EPF ──
+    const centerX = groupX + barW + gap/2;
+    ctx.save();
+    ctx.translate(centerX, PAD.t + H + 8);
+    ctx.rotate(Math.PI / 4);
+    ctx.fillStyle='#e8eaf0'; ctx.font='10px Segoe UI'; ctx.textAlign='left';
+    ctx.fillText(r.operator, 0, 0);
+    ctx.fillStyle='#7a7f9a'; ctx.font='9px Courier New';
+    ctx.fillText(r.epf, 0, 12);
+    ctx.fillStyle='#4f8ef766'; ctx.font='8px Segoe UI';
+    ctx.fillText(r.operation.substring(0,16), 0, 24);
+    ctx.restore();
+  });
+
+  // ── Baseline ──
+  ctx.strokeStyle='#2e3248'; ctx.lineWidth=1.5; ctx.setLineDash([]);
+  ctx.beginPath(); ctx.moveTo(PAD.l, PAD.t+H); ctx.lineTo(PAD.l+W, PAD.t+H); ctx.stroke();
+}
+
+function downloadChart() {
+  renderChart();
+  const canvas = document.getElementById('chartCanvas');
+  const a = document.createElement('a');
+  a.href = canvas.toDataURL('image/png');
+  a.download = `CycleStudy_Chart_${Date.now()}.png`;
+  a.click();
+  showToast('✅ Chart downloaded');
+}
+
+// ─── BACKUP / RESTORE ──────────────────────────────────────────────────────
+function backup() {
+  const data = { records: allRecords, operations, operators, skillMatrix, version: 2, ts: new Date().toISOString() };
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `CycleStudy_Backup_${Date.now()}.json`;
+  a.click();
+  showToast('✅ Backup downloaded');
+}
+
+function restore(e) {
+  const file = e.target.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      if(!Array.isArray(data.records)) throw new Error('Invalid format');
+      if(!confirm(`Restore ${data.records.length} records? This will merge with existing data.`)) return;
+      allRecords = [...allRecords, ...data.records.filter(r => !allRecords.some(x=>x.ts===r.ts))];
+      if(data.operations) operations = data.operations;
+      if(Array.isArray(data.operators)) operators = [...operators, ...data.operators.filter(n=>!operators.some(o=>o.epf===n.epf))];
+      if(Array.isArray(data.skillMatrix)) skillMatrix = [...skillMatrix, ...data.skillMatrix.filter(n=>!skillMatrix.some(s=>s.epf===n.epf && s.operation===n.operation))];
+      localStorage.setItem('cycleStudyRecords', JSON.stringify(allRecords));
+      saveOperators();
+      saveSkillMatrix();
+      refreshOpDropdown();
+      refreshOperatorDropdowns();
+      showToast(`✅ Restored ${data.records.length} records`);
+    } catch(err) {
+      showToast('⚠ Invalid backup file', 'danger');
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+}
+
+// ─── OPERATION BREAKDOWN EDIT / DELETE ────────────────────────────────────
+function openEditOp(i) {
+  document.getElementById('editOpIdx').value = i;
+  document.getElementById('editOpName').value = operations[i].name;
+  document.getElementById('editOpSMV').value = operations[i].smv;
+  document.getElementById('editOpModal').classList.add('open');
+}
+function saveEditOp() {
+  const i = parseInt(document.getElementById('editOpIdx').value);
+  const name = document.getElementById('editOpName').value.trim();
+  const smv = parseFloat(document.getElementById('editOpSMV').value);
+  if(!name || isNaN(smv)) { showToast('⚠ Enter valid name and SMV', 'danger'); return; }
+  operations[i] = { name, smv };
+  refreshOpDropdown();
+  closeModal('editOpModal');
+  showToast('✅ Operation updated');
+}
+function deleteOp(i) {
+  if(!confirm(`Delete "${operations[i].name}"?`)) return;
+  operations.splice(i, 1);
+  refreshOpDropdown();
+  // reset selection if deleted op was selected
+  document.getElementById('opSelect').value = '';
+  document.getElementById('smvDisplay').style.display = 'none';
+  showToast('✅ Operation deleted');
+}
+
+// ─── RECORD DELETE ─────────────────────────────────────────────────────────
+function deleteRecord(globalIdx) {
+  if(!confirm('Delete this record?')) return;
+  allRecords.splice(globalIdx, 1);
+  localStorage.setItem('cycleStudyRecords', JSON.stringify(allRecords));
+  renderRecords();
+  showToast('✅ Record deleted');
+}
+
+// ─── PROJECT DELETE ────────────────────────────────────────────────────────
+let _delProjStyle = '', _delProjLine = '';
+function openDelProject(style, line) {
+  _delProjStyle = style; _delProjLine = line;
+  const count = allRecords.filter(r => r.style === style && r.line === line).length;
+  document.getElementById('delProjStyle').textContent = style;
+  document.getElementById('delProjLine').textContent = line;
+  document.getElementById('delProjCount').textContent = `${count} record${count>1?'s':''} will be deleted`;
+  document.getElementById('delProjectModal').classList.add('open');
+}
+function confirmDelProject() {
+  allRecords = allRecords.filter(r => !(r.style === _delProjStyle && r.line === _delProjLine));
+  localStorage.setItem('cycleStudyRecords', JSON.stringify(allRecords));
+  closeModal('delProjectModal');
+  renderRecords();
+  showToast('✅ Project deleted');
+}
+
+// ─── OPERATOR DATABASE (PAGE 5) ────────────────────────────────────────────
+function saveOperators() { localStorage.setItem('cycleStudyOperators', JSON.stringify(operators)); }
+
+const opDbDropZone = document.getElementById('opDbDropZone');
+if(opDbDropZone) {
+  opDbDropZone.addEventListener('dragover', e => { e.preventDefault(); opDbDropZone.classList.add('drag'); });
+  opDbDropZone.addEventListener('dragleave', () => opDbDropZone.classList.remove('drag'));
+  opDbDropZone.addEventListener('drop', e => { e.preventDefault(); opDbDropZone.classList.remove('drag'); if(e.dataTransfer.files[0]) processOperatorFile(e.dataTransfer.files[0]); });
+}
+
+function loadOperatorFile(e) { if(e.target.files[0]) processOperatorFile(e.target.files[0]); }
+
+function processOperatorFile(file) {
+  const ext = file.name.split('.').pop().toLowerCase();
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      let rows;
+      if(['xlsx','xlsm','xls'].includes(ext)) {
+        const data = new Uint8Array(ev.target.result);
+        const wb = XLSX.read(data, {type:'array'});
+        rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header:1, defval:null});
+      } else {
+        rows = ev.target.result.split('\n').map(l => l.split(',').map(c=>c.trim()));
+      }
+
+      let headerIdx = -1, lineCol=-1, nameCol=-1, epfCol=-1;
+      for(let i=0;i<Math.min(rows.length,10);i++) {
+        const row = rows[i] || [];
+        row.forEach((cell, c) => {
+          if(typeof cell === 'string') {
+            const lc = cell.toLowerCase();
+            if(lc.includes('line')) { lineCol = c; headerIdx = i; }
+            if(lc.includes('name') && !lc.includes('operation')) { nameCol = c; headerIdx = i; }
+            if(lc.includes('epf')) { epfCol = c; headerIdx = i; }
+          }
+        });
+        if(lineCol>=0 && nameCol>=0 && epfCol>=0) break;
+      }
+
+      if(lineCol<0 || nameCol<0 || epfCol<0) {
+        showToast('⚠ Could not detect Line/Name/EPF columns', 'danger');
+        return;
+      }
+
+      const newOps = [];
+      for(let i=headerIdx+1; i<rows.length; i++) {
+        const row = rows[i] || [];
+        const line = row[lineCol], name = row[nameCol], epf = row[epfCol];
+        if(line!=null && name!=null && epf!=null && String(name).trim()) {
+          newOps.push({ line: String(line).trim(), name: String(name).trim(), epf: String(epf).trim() });
+        }
+      }
+
+      if(newOps.length > 0) {
+        operators = [...operators, ...newOps.filter(n => !operators.some(o=>o.epf===n.epf))];
+        saveOperators();
+        renderOperatorTable();
+        refreshOperatorDropdowns();
+        showToast(`✅ Loaded ${newOps.length} operators`);
+      } else {
+        showToast('⚠ No operator rows found', 'danger');
+      }
+    } catch(err) {
+      showToast('⚠ Error reading file: ' + err.message, 'danger');
+    }
+  };
+  if(['xlsx','xlsm','xls'].includes(ext)) reader.readAsArrayBuffer(file);
+  else reader.readAsText(file);
+}
+
+function addOperatorManual() {
+  const line = document.getElementById('manLine').value.trim();
+  const name = document.getElementById('manName').value.trim();
+  const epf = document.getElementById('manEpf').value.trim();
+  if(!line || !name || !epf) { showToast('⚠ Fill all fields', 'danger'); return; }
+  operators.push({line, name, epf});
+  saveOperators();
+  document.getElementById('manLine').value='';
+  document.getElementById('manName').value='';
+  document.getElementById('manEpf').value='';
+  renderOperatorTable();
+  refreshOperatorDropdowns();
+  showToast('✅ Operator added');
+}
+
+function renderOperatorTable() {
+  const flEl = document.getElementById('opFilterLine');
+  const fsEl = document.getElementById('opFilterSearch');
+  if(!flEl) return;
+  const fl = flEl.value.toLowerCase();
+  const fs = fsEl.value.toLowerCase();
+  const filtered = operators.filter(o =>
+    (!fl || o.line.toLowerCase().includes(fl)) &&
+    (!fs || o.name.toLowerCase().includes(fs) || o.epf.toLowerCase().includes(fs))
+  );
+  document.getElementById('opCount').textContent = operators.length;
+  const tbody = document.getElementById('operatorTbody');
+  tbody.innerHTML = filtered.map((o,i) => {
+    const realIdx = operators.indexOf(o);
+    return `<tr><td>${i+1}</td><td>${o.line}</td><td>${o.name}</td><td style="font-family:var(--font-mono)">${o.epf}</td>
+      <td><button class="btn btn-danger btn-sm" onclick="deleteOperator(${realIdx})" style="padding:3px 8px;">✕</button></td></tr>`;
+  }).join('');
+  if(filtered.length===0) tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px;">No operators found</td></tr>`;
+}
+
+function deleteOperator(i) {
+  if(!confirm('Delete this operator?')) return;
+  operators.splice(i,1);
+  saveOperators();
+  renderOperatorTable();
+  refreshOperatorDropdowns();
+  showToast('✅ Operator deleted');
+}
+
+function clearOperators() {
+  if(!confirm('Delete ALL operators?')) return;
+  operators = [];
+  saveOperators();
+  renderOperatorTable();
+  refreshOperatorDropdowns();
+  showToast('✅ All operators cleared');
+}
+
+function exportOperators() {
+  if(operators.length===0) { showToast('⚠ No operators to export', 'danger'); return; }
+  const header = ['Line No','Name','EPF'];
+  const rows = operators.map(o => [o.line, o.name, o.epf]);
+  const csv = [header, ...rows].map(r => r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob(['\ufeff'+csv], {type:'text/csv;charset=utf-8;'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `Operators_${Date.now()}.csv`;
+  a.click();
+  showToast('✅ Downloaded!');
+}
+
+function refreshOperatorDropdowns() {
+  renderOperatorTable();
+  const lines = [...new Set(operators.map(o=>o.line))].sort();
+
+  // Page 4 Skill Matrix dropdown
+  const lineSel = document.getElementById('smLine');
+  if(lineSel) {
+    lineSel.innerHTML = '<option value="">-- Select Line --</option>' + lines.map(l=>`<option value="${l}">${l}</option>`).join('');
+    document.getElementById('smName').innerHTML = '<option value="">-- Select Operator --</option>';
+    document.getElementById('smEpf').innerHTML = '<option value="">-- Select EPF --</option>';
+    const opSel = document.getElementById('smOperation');
+    if(opSel) opSel.innerHTML = '<option value="">-- Select Operation --</option>' + operations.map(o=>`<option value="${o.name}">${o.name}</option>`).join('');
+  }
+
+  // Page 1 Study dropdowns
+  const studyLineSel = document.getElementById('lineNo');
+  if(studyLineSel) {
+    const currentVal = studyLineSel.value;
+    studyLineSel.innerHTML = '<option value="">-- Select Line --</option>' + lines.map(l=>`<option value="${l}">${l}</option>`).join('');
+    if(lines.includes(currentVal)) { studyLineSel.value = currentVal; onStudyLineChange(); }
+  }
+}
+
+function onSmLineChange() {
+  const line = document.getElementById('smLine').value;
+  const names = operators.filter(o=>o.line===line);
+  const nameSel = document.getElementById('smName');
+  const epfSel = document.getElementById('smEpf');
+  nameSel.innerHTML = '<option value="">-- Select Operator --</option>' + names.map(o=>`<option value="${o.epf}">${o.name}</option>`).join('');
+  epfSel.innerHTML = '<option value="">-- Select EPF --</option>' + names.map(o=>`<option value="${o.epf}">${o.epf}</option>`).join('');
+}
+
+function onSmNameChange() {
+  const epf = document.getElementById('smName').value;
+  document.getElementById('smEpf').value = epf;
+}
+
+function onSmEpfChange() {
+  const epf = document.getElementById('smEpf').value;
+  document.getElementById('smName').value = epf;
+}
+
+// ─── PAGE 1 STUDY: LINE → NAME → EPF CASCADE (all dropdowns) ──────────────
+function onStudyLineChange() {
+  const line = document.getElementById('lineNo').value;
+  const names = operators.filter(o=>o.line===line);
+  const nameSel = document.getElementById('opName');
+  const epfSel = document.getElementById('epfNo');
+  nameSel.innerHTML = '<option value="">-- Select Operator --</option>' + names.map(o=>`<option value="${o.epf}">${o.name}</option>`).join('');
+  epfSel.innerHTML = '<option value="">-- Select EPF --</option>' + names.map(o=>`<option value="${o.epf}">${o.epf}</option>`).join('');
+}
+
+function onStudyNameChange() {
+  const epf = document.getElementById('opName').value;
+  document.getElementById('epfNo').value = epf;
+}
+
+function onStudyEpfChange() {
+  const epf = document.getElementById('epfNo').value;
+  document.getElementById('opName').value = epf;
+}
+
+// ─── MANUAL ENTRY MODAL (Page 1) ───────────────────────────────────────────
+function openManualEntry() {
+  document.getElementById('meOpName').value = '';
+  document.getElementById('meSMV').value = '';
+  document.getElementById('meOperatorName').value = '';
+  document.getElementById('meEpf').value = '';
+  document.getElementById('meLine').value = document.getElementById('lineNo').value || '';
+  document.getElementById('manualEntryModal').classList.add('open');
+}
+
+function saveManualEntry() {
+  const opName = document.getElementById('meOpName').value.trim();
+  const smv = parseFloat(document.getElementById('meSMV').value);
+  const operatorName = document.getElementById('meOperatorName').value.trim();
+  const epf = document.getElementById('meEpf').value.trim();
+  const line = document.getElementById('meLine').value.trim();
+
+  let didSomething = false;
+
+  // Add operation if provided
+  if(opName && !isNaN(smv)) {
+    operations.push({name: opName, smv});
+    refreshOpDropdown();
+    didSomething = true;
+  } else if(opName || !isNaN(smv)) {
+    showToast('⚠ Provide both Operation Name and SMV, or leave both empty', 'danger');
+    return;
+  }
+
+  // Add operator if provided
+  if(operatorName && epf) {
+    if(!line) { showToast('⚠ Enter Line for the operator', 'danger'); return; }
+    if(!operators.some(o=>o.epf===epf)) {
+      operators.push({line, name: operatorName, epf});
+      saveOperators();
+      refreshOperatorDropdowns();
+    }
+    // Auto-select this line/name/epf in Page 1
+    document.getElementById('lineNo').value = line;
+    onStudyLineChange();
+    document.getElementById('opName').value = epf;
+    document.getElementById('epfNo').value = epf;
+    didSomething = true;
+  } else if(operatorName || epf) {
+    showToast('⚠ Provide both Operator Name and EPF, or leave both empty', 'danger');
+    return;
+  }
+
+  if(!didSomething) { showToast('⚠ Enter at least one of Operation or Operator', 'danger'); return; }
+
+  closeModal('manualEntryModal');
+  showToast('✅ Manual entry saved');
+}
+
+// ─── SKILL MATRIX (PAGE 4) ──────────────────────────────────────────────────
+function saveSkillMatrix() { localStorage.setItem('cycleStudySkillMatrix', JSON.stringify(skillMatrix)); }
+
+function addSkillEntry() {
+  const line = document.getElementById('smLine').value;
+  const epf = document.getElementById('smEpf').value;
+  const nameSel = document.getElementById('smName');
+  const name = nameSel.options[nameSel.selectedIndex]?.textContent || '';
+  const operation = document.getElementById('smOperation').value;
+  const level = parseInt(document.getElementById('smLevel').value);
+
+  if(!line || !epf || !operation) { showToast('⚠ Select Line, Operator and Operation', 'danger'); return; }
+
+  const existing = skillMatrix.find(s => s.epf===epf && s.operation===operation);
+  if(existing) {
+    existing.level = level;
+    existing.line = line;
+    existing.name = name;
+  } else {
+    skillMatrix.push({line, epf, name, operation, level});
+  }
+  saveSkillMatrix();
+  renderSkillMatrix();
+  showToast('✅ Skill rating saved');
+}
+
+function renderSkillMatrix() {
+  const wrap = document.getElementById('skillMatrixWrap');
+  if(!wrap) return;
+  if(skillMatrix.length===0) { wrap.innerHTML = `<div style="text-align:center;color:var(--muted);padding:30px;">No skill data yet</div>`; return; }
+
+  const ops = [...new Set(skillMatrix.map(s=>s.operation))];
+  const epfs = [...new Set(skillMatrix.map(s=>s.epf))];
+
+  const levelColor = lvl => lvl>=4 ? 'var(--success)' : lvl===3 ? 'var(--accent)' : lvl===2 ? 'var(--accent2)' : 'var(--danger)';
+
+  let html = `<table><thead><tr><th>Operator</th><th>EPF</th><th>Line</th>${ops.map(o=>`<th>${o}</th>`).join('')}</tr></thead><tbody>`;
+  epfs.forEach(epf => {
+    const entries = skillMatrix.filter(s=>s.epf===epf);
+    const name = entries[0].name;
+    const line = entries[0].line;
+    html += `<tr><td>${name}</td><td style="font-family:var(--font-mono)">${epf}</td><td>${line}</td>`;
+    ops.forEach(op => {
+      const e = entries.find(x=>x.operation===op);
+      if(e) {
+        html += `<td style="text-align:center;"><span style="display:inline-block;width:26px;height:26px;border-radius:50%;background:${levelColor(e.level)};color:#0a0a0a;font-weight:800;font-size:12px;line-height:26px;cursor:pointer;" onclick="deleteSkillEntry('${epf}','${op.replace(/'/g,"\\'")}')" title="Click to remove">${e.level}</span></td>`;
+      } else {
+        html += `<td style="text-align:center;color:var(--muted);">—</td>`;
+      }
+    });
+    html += `</tr>`;
+  });
+  html += `</tbody></table>`;
+  wrap.innerHTML = html;
+}
+
+function deleteSkillEntry(epf, operation) {
+  if(!confirm('Remove this skill rating?')) return;
+  skillMatrix = skillMatrix.filter(s => !(s.epf===epf && s.operation===operation));
+  saveSkillMatrix();
+  renderSkillMatrix();
+}
+
+function clearSkillMatrix() {
+  if(!confirm('Clear entire skill matrix?')) return;
+  skillMatrix = [];
+  saveSkillMatrix();
+  renderSkillMatrix();
+  showToast('✅ Skill matrix cleared');
+}
+
+function exportSkillMatrix() {
+  if(skillMatrix.length===0) { showToast('⚠ No data to export', 'danger'); return; }
+  const ops = [...new Set(skillMatrix.map(s=>s.operation))];
+  const epfs = [...new Set(skillMatrix.map(s=>s.epf))];
+  const header = ['Operator','EPF','Line', ...ops];
+  const rows = epfs.map(epf => {
+    const entries = skillMatrix.filter(s=>s.epf===epf);
+    const row = [entries[0].name, epf, entries[0].line];
+    ops.forEach(op => {
+      const e = entries.find(x=>x.operation===op);
+      row.push(e ? e.level : '');
+    });
+    return row;
+  });
+  const csv = [header, ...rows].map(r => r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob(['\ufeff'+csv], {type:'text/csv;charset=utf-8;'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `SkillMatrix_${Date.now()}.csv`;
+  a.click();
+  showToast('✅ Downloaded!');
+}
+
+// ─── MODAL HELPERS ─────────────────────────────────────────────────────────
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+// Close on overlay click
+document.querySelectorAll('.modal-overlay').forEach(el => {
+  el.addEventListener('click', e => { if(e.target === el) el.classList.remove('open'); });
+});
+let toastTimer;
+function showToast(msg, type='success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.background = type==='danger' ? '#f75f5f' : '#4fcf8e';
+  t.style.color = type==='danger' ? '#fff' : '#0a1f15';
+  t.style.display = 'block';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>t.style.display='none', 2800);
+}
+
+// ─── WINDOW RESIZE ─────────────────────────────────────────────────────────
+window.addEventListener('resize', () => { if(document.getElementById('p3').classList.contains('active')) renderChart(); });
+
+// ─── INIT ──────────────────────────────────────────────────────────────────
+renderSessionTable();
+renderOperatorTable();
+refreshOperatorDropdowns();
+refreshOpDropdown();
+</script>
+</body>
+</html>
